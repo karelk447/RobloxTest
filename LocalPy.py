@@ -1,26 +1,41 @@
 import requests
 import time
 
-BASE_URL = "https://robloxtest-2h1p.onrender.com" # Use localhost for testing
-username = input("Enter Roblox Username: ")
+# REPLACE THIS with your Render URL (must have https://)
+BASE_URL = "https://robloxtest-2h1p.onrender.com"
 
-# 1. Request Verification
-res = requests.post(f"{BASE_URL}/request_verify", json={"username": username})
-code = res.json()['code']
-print(f"Your verification code is: {code}")
-print("Please enter this in the Roblox game...")
+username = input("Enter Roblox Username to verify: ")
 
-# 2. Wait for Roblox to confirm
-verified = False
-while not verified:
-    check = requests.get(f"{BASE_URL}/check_verify", params={"username": username}).json()
-    if check.get("verified"):
-        print("Verified successfully!")
-        verified = True
-    else:
-        time.sleep(2)
+try:
+    print("Connecting to server...")
+    res = requests.post(f"{BASE_URL}/request_verify", json={"username": username}, timeout=30)
+    res.raise_for_status()
+    
+    code = res.json()['code']
+    print(f"\n[!] YOUR CODE IS: {code}")
+    print("[!] Join the game and type this code in chat.\n")
 
-# 3. Chat loop
-while True:
-    msg = input("Type a message: ")
-    requests.post(f"{BASE_URL}/send_message", json={"username": username, "content": msg})
+    # Polling for verification status
+    verified = False
+    while not verified:
+        try:
+            check = requests.get(f"{BASE_URL}/check_verify", params={"username": username}).json()
+            if check.get("verified"):
+                print("Successfully Verified!")
+                verified = True
+            else:
+                time.sleep(3)
+        except Exception:
+            time.sleep(3)
+
+    # Chat loop
+    print("--- Chat Room Active (Ctrl+C to quit) ---")
+    while True:
+        msg = input(f"{username}> ")
+        if msg.strip():
+            requests.post(f"{BASE_URL}/send_message", json={"username": username, "content": msg})
+
+except requests.exceptions.HTTPError as e:
+    print(f"Server Error: {e}")
+except Exception as e:
+    print(f"An error occurred: {e}")

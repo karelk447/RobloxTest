@@ -1,17 +1,27 @@
+import os
 from flask import Flask, request, jsonify
+from flask_cors import CORS
 import random
 import string
 
 app = Flask(__name__)
+CORS(app)
 
 # Data stores
-pending_verifications = {} # {username: code}
+pending_verifications = {} 
 messages = []
+
+@app.route('/')
+def home():
+    return "Server is Online", 200
 
 @app.route('/request_verify', methods=['POST'])
 def request_verify():
     data = request.json
     username = data.get("username")
+    if not username:
+        return jsonify({"error": "Username required"}), 400
+    
     code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
     pending_verifications[username] = {"code": code, "status": "pending"}
     return jsonify({"code": code})
@@ -27,12 +37,13 @@ def check_verify():
 @app.route('/send_message', methods=['POST'])
 def send_message():
     data = request.json
-    messages.append(f"{data['username']}: {data['content']}")
-    return jsonify({"success": True})
+    if data and "username" in data and "content" in data:
+        messages.append(f"{data['username']}: {data['content']}")
+        return jsonify({"success": True})
+    return jsonify({"error": "Invalid data"}), 400
 
 @app.route('/get_updates', methods=['GET'])
 def get_updates():
-    # Roblox calls this to see who needs to verify and get new messages
     return jsonify({
         "verifications": pending_verifications,
         "messages": messages
@@ -40,12 +51,14 @@ def get_updates():
 
 @app.route('/confirm_roblox', methods=['POST'])
 def confirm_roblox():
-    # Roblox calls this when a player enters the right code
-    username = request.json.get("username")
+    data = request.json
+    username = data.get("username")
     if username in pending_verifications:
         pending_verifications[username]["status"] = "verified"
         return jsonify({"success": True})
     return jsonify({"success": False})
 
 if __name__ == '__main__':
-    app.run(port=5000)
+    # Render Dynamic Port Binding
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host='0.0.0.0', port=port)

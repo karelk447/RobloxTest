@@ -1,55 +1,57 @@
 local HttpService = game:GetService("HttpService")
--- REPLACE THIS with your Render URL
-local URL = "https://robloxtest-2h1p.onrender.com"
+local URL = "https://your-app-name.onrender.com"
 
-local lastProcessedMsgCount = 0
+local lastProcessedMsg = 0
 
-local function pollServer()
+-- Helper to manage UI
+local function updateUI(username, code)
+	local player = game.Players:FindFirstChild(username)
+	if not player then return end
+	
+	local gui = player.PlayerGui:FindFirstChild("VerificationGui")
+	if not gui then
+		gui = Instance.new("ScreenGui", player.PlayerGui)
+		gui.Name = "VerificationGui"
+		local label = Instance.new("TextLabel", gui)
+		label.Size = UDim2.new(0, 400, 0, 80)
+		label.Position = UDim2.new(0.5, -200, 0.1, 0)
+		label.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+		label.TextColor3 = Color3.fromRGB(255, 255, 255)
+		label.TextSize = 25
+		label.BorderSizePixel = 3
+	end
+	gui.TextLabel.Text = "PYTHON AUTH CODE: " .. (code or "---")
+end
+
+-- Long Polling Loop
+task.spawn(function()
 	while true do
-		local success, response = pcall(function()
-			return HttpService:GetAsync(URL .. "/get_updates")
+		local success, result = pcall(function()
+			return HttpService:GetAsync(URL .. "/poll_updates")
 		end)
 
 		if success then
-			local data = HttpService:JSONDecode(response)
+			local data = HttpService:JSONDecode(result)
 			
-			-- 1. Handle Messages (Only print new ones)
-			if #data.messages > lastProcessedMsgCount then
-				for i = lastProcessedMsgCount + 1, #data.messages do
-					print("[Python Chat]: " .. data.messages[i])
+			-- 1. Sync UI/Verifications
+			for _, player in pairs(game.Players:GetPlayers()) do
+				local sessionData = data.verifications[player.Name]
+				if sessionData and sessionData.status == "pending" then
+					updateUI(player.Name, sessionData.code)
+				else
+					local gui = player.PlayerGui:FindFirstChild("VerificationGui")
+					if gui then gui:Destroy() end
 				end
-				lastProcessedMsgCount = #data.messages
 			end
 			
-			-- 2. Keep track of pending verifications internally
-			_G.PendingData = data.verifications
-		else
-			warn("Failed to contact Render server. It might be sleeping.")
+			-- 2. Sync Messages (Instant)
+			if #data.messages > lastProcessedMsg then
+				for i = lastProcessedMsg + 1, #data.messages do
+					print("[Python Sync]: " .. data.messages[i])
+				end
+				lastProcessedMsg = #data.messages
+			end
 		end
-		task.wait(5) -- Poll every 5 seconds
+		task.wait(0.1)
 	end
-end
-
--- Watch for chat in-game
-game.Players.PlayerAdded:Connect(function(player)
-	player.Chatted:Connect(function(message)
-		if _G.PendingData and _G.PendingData[player.Name] then
-			local userStatus = _G.PendingData[player.Name]
-			
-			if userStatus.status == "pending" and message == userStatus.code then
-				-- Notify Server
-				local success = pcall(function()
-					HttpService:PostAsync(URL .. "/confirm_roblox", 
-						HttpService:JSONEncode({username = player.Name}),
-						Enum.HttpContentType.ApplicationJson
-					)
-				end)
-				if success then
-					print(player.Name .. " has successfully verified!")
-				end
-			end
-		end
-	end)
 end)
-
-task.spawn(pollServer)

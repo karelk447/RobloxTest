@@ -1,41 +1,43 @@
 import requests
 import time
 
-# REPLACE THIS with your Render URL (must have https://)
-BASE_URL = "https://robloxtest-2h1p.onrender.com"
+BASE_URL = "https://your-app-name.onrender.com" # Replace with your Render URL
 
-username = input("Enter Roblox Username to verify: ")
-
-try:
-    print("Connecting to server...")
-    res = requests.post(f"{BASE_URL}/request_verify", json={"username": username}, timeout=30)
-    res.raise_for_status()
+def main():
+    user = input("Enter Roblox Username: ").strip()
     
-    code = res.json()['code']
-    print(f"\n[!] YOUR CODE IS: {code}")
-    print("[!] Join the game and type this code in chat.\n")
-
-    # Polling for verification status
-    verified = False
-    while not verified:
-        try:
-            check = requests.get(f"{BASE_URL}/check_verify", params={"username": username}).json()
-            if check.get("verified"):
-                print("Successfully Verified!")
-                verified = True
-            else:
-                time.sleep(3)
-        except Exception:
-            time.sleep(3)
-
-    # Chat loop
-    print("--- Chat Room Active (Ctrl+C to quit) ---")
+    # 1. Attempt Connection
+    res = requests.post(f"{BASE_URL}/connect", json={"username": user})
+    if res.status_code == 403:
+        print(f"Error: {res.json()['error']}")
+        return
+    
+    print(f"Connection requested. Look at the code on your ROBLOX screen for {user}.")
+    
+    # 2. Verification Loop
     while True:
-        msg = input(f"{username}> ")
-        if msg.strip():
-            requests.post(f"{BASE_URL}/send_message", json={"username": username, "content": msg})
+        code_input = input("Enter code (or 'cancel' to quit): ").strip().upper()
+        if code_input == "CANCEL":
+            requests.post(f"{BASE_URL}/disconnect", json={"username": user})
+            print("Cancelled.")
+            return
+        
+        verify = requests.post(f"{BASE_URL}/verify_code", json={"username": user, "code": code_input})
+        if verify.status_code == 200:
+            print("Verified! Messaging active.")
+            break
+        print("Incorrect code. Try again.")
 
-except requests.exceptions.HTTPError as e:
-    print(f"Server Error: {e}")
-except Exception as e:
-    print(f"An error occurred: {e}")
+    # 3. Messaging
+    print("(Type 'exit' to logout)")
+    try:
+        while True:
+            text = input(f"{user}> ")
+            if text.lower() == "exit": break
+            requests.post(f"{BASE_URL}/send_message", json={"username": user, "content": text})
+    finally:
+        requests.post(f"{BASE_URL}/disconnect", json={"username": user})
+        print("Disconnected.")
+
+if __name__ == "__main__":
+    main()

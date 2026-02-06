@@ -1,58 +1,56 @@
-print("Running")
 local HttpService = game:GetService("HttpService")
-local URL = "https://robloxtest-2h1p.onrender.com"
+-- Fetches the link from the StringValue we created
+local URL = game.ServerStorage:WaitForChild("ServerConfig"):WaitForChild("ApiUrl").Value
 
-local lastProcessedMsg = 0
+local lastMsgCount = 0
 
--- Helper to manage UI
-local function updateUI(username, code)
-	local player = game.Players:FindFirstChild(username)
-	if not player then return end
-	
-	local gui = player.PlayerGui:FindFirstChild("VerificationGui")
-	if not gui then
-		gui = Instance.new("ScreenGui", player.PlayerGui)
-		gui.Name = "VerificationGui"
-		local label = Instance.new("TextLabel", gui)
-		label.Size = UDim2.new(0, 400, 0, 80)
-		label.Position = UDim2.new(0.5, -200, 0.1, 0)
-		label.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-		label.TextColor3 = Color3.fromRGB(255, 255, 255)
-		label.TextSize = 25
-		label.BorderSizePixel = 3
-	end
-	gui.TextLabel.Text = "PYTHON AUTH CODE: " .. (code or "---")
+local function updateGui(player, code)
+	local gui = player.PlayerGui:FindFirstChild("AuthGui") or Instance.new("ScreenGui", player.PlayerGui)
+	gui.Name = "AuthGui"
+
+	local frame = gui:FindFirstChild("Frame") or Instance.new("Frame", gui)
+	frame.Name = "Frame"
+	frame.Size = UDim2.new(0.3, 0, 0.1, 0)
+	frame.Position = UDim2.new(0.35, 0, 0.05, 0)
+	frame.BackgroundColor3 = Color3.new(0,0,0)
+
+	local label = frame:FindFirstChild("Label") or Instance.new("TextLabel", frame)
+	label.Name = "Label"
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1,1,1)
+	label.TextScaled = true -- FIXED: Auto-resizing text
+	label.Text = "AUTH CODE: " .. code
 end
 
--- Long Polling Loop
 task.spawn(function()
 	while true do
-		local success, result = pcall(function()
-			return HttpService:GetAsync(URL .. "/poll_updates")
+		local names = {}
+		for _, p in pairs(game.Players:GetPlayers()) do table.insert(names, p.Name) end
+
+		local success, response = pcall(function()
+			return HttpService:PostAsync(URL .. "/roblox_sync", HttpService:JSONEncode({players = names}))
 		end)
 
 		if success then
-			local data = HttpService:JSONDecode(result)
-			
-			-- 1. Sync UI/Verifications
-			for _, player in pairs(game.Players:GetPlayers()) do
-				local sessionData = data.verifications[player.Name]
-				if sessionData and sessionData.status == "pending" then
-					updateUI(player.Name, sessionData.code)
-				else
-					local gui = player.PlayerGui:FindFirstChild("VerificationGui")
-					if gui then gui:Destroy() end
+			local data = HttpService:JSONDecode(response)
+			for _, p in pairs(game.Players:GetPlayers()) do
+				local session = data.sessions[p.Name]
+				if session and session.status == "pending" then
+					updateGui(p, session.code)
+				elseif p.PlayerGui:FindFirstChild("AuthGui") then
+					p.PlayerGui.AuthGui:Destroy()
 				end
 			end
-			
-			-- 2. Sync Messages (Instant)
-			if #data.messages > lastProcessedMsg then
-				for i = lastProcessedMsg + 1, #data.messages do
+			if #data.messages > lastMsgCount then
+				for i = lastMsgCount + 1, #data.messages do
 					print("[Python Sync]: " .. data.messages[i])
 				end
-				lastProcessedMsg = #data.messages
+				lastMsgCount = #data.messages
 			end
+		else
+			warn("Server not responding")
 		end
-		task.wait(0.1)
+		task.wait(1.5)
 	end
 end)

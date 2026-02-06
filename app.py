@@ -8,7 +8,11 @@ CORS(app)
 sessions = {}
 online_players = []
 messages = []
-new_event = False
+
+# This is the endpoint the client uses to check if server is awake
+@app.route('/')
+def health_check():
+    return "OK", 200
 
 @app.route('/roblox_sync', methods=['POST'])
 def roblox_sync():

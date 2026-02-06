@@ -1,36 +1,61 @@
-import requests, json, sys
+import requests
+import json
+import sys
+import time
 
-# Load URL from config file
 try:
     with open("config.json", "r") as f:
-        BASE_URL = json.load(f)["BASE_URL"]
-except Exception as e:
-    print("Error: Could not read config.json")
+        config = json.load(f)
+        BASE_URL = config["BASE_URL"].rstrip("/")
+except:
+    print("CRITICAL: config.json missing!")
     sys.exit()
 
-def main():
-    user = input("Username: ").strip()
-    res = requests.post(f"{BASE_URL}/connect", json={"username": user})
-    
-    if res.status_code != 200:
-        print(f"Error: {res.json().get('error', 'Unknown error')}")
-        return
+def check_online():
+    try:
+        return requests.get(BASE_URL, timeout=3).status_code == 200
+    except:
+        return False
 
-    print(f"Code sent to Roblox for {user}...")
-    while True:
-        code_in = input("Enter Code: ").strip().upper()
-        if code_in == "CANCEL": 
-            requests.post(f"{BASE_URL}/disconnect", json={"username": user})
+def main():
+    # Initial Wait
+    print(f"Connecting to {BASE_URL}...")
+    while not check_online():
+        print("Waiting for server to wake up...", end="\r")
+        time.sleep(2)
+    print("\n[!] Server Online.")
+
+    user = input("Username: ").strip()
+    
+    # Connect
+    try:
+        res = requests.post(f"{BASE_URL}/connect", json={"username": user})
+        if res.status_code != 200:
+            print(f"Error: {res.json().get('error')}")
             return
         
-        if requests.post(f"{BASE_URL}/verify_code", json={"username": user, "code": code_in}).status_code == 200:
-            print("Verified!")
-            break
-
-    try:
+        print(f"Code sent to {user} in-game.")
+        
+        # Verify
         while True:
-            txt = input("> ")
-            requests.post(f"{BASE_URL}/send_message", json={"username": user, "content": txt})
+            code = input("Code: ").strip().upper()
+            if code == "CANCEL": return
+            if requests.post(f"{BASE_URL}/verify_code", json={"username": user, "code": code}).status_code == 200:
+                print("Verified!")
+                break
+            print("Wrong code.")
+
+        # Chat
+        while True:
+            msg = input("> ")
+            if msg.lower() == "exit": break
+            
+            # Double check server status before sending
+            if check_online():
+                requests.post(f"{BASE_URL}/send_message", json={"username": user, "content": msg})
+            else:
+                print("⚠️ Message failed: Server went offline.")
+
     finally:
         requests.post(f"{BASE_URL}/disconnect", json={"username": user})
 

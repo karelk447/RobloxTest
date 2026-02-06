@@ -1,5 +1,9 @@
 local HttpService = game:GetService("HttpService")
-local config = game.ServerStorage:WaitForChild("ServerConfig")
+local ServerStorage = game:GetService("ServerStorage")
+local TextChatService = game:GetService("TextChatService")
+
+-- Path changed to ServerStorage for security
+local config = ServerStorage:WaitForChild("ServerConfig")
 local URL = config:WaitForChild("ApiUrl").Value
 
 local lastMsgCount = 0
@@ -26,22 +30,21 @@ local function updateGui(player, code)
 	label.Text = "AUTH CODE: " .. code
 end
 
-local function cleanupAllGuis()
-	for _, p in pairs(game.Players:GetPlayers()) do
-		local gui = p.PlayerGui:FindFirstChild("AuthGui")
-		if gui then gui:Destroy() end
+-- Function to handle Bubble Chat
+local function createBubble(username, content)
+	local player = game.Players:FindFirstChild(username)
+	if player and player.Character and player.Character:FindFirstChild("Head") then
+		-- This creates the overhead bubble
+		TextChatService:DisplayBubble(player.Character.Head, content)
 	end
 end
 
--- Main Sync/Status Loop
 task.spawn(function()
 	print("📡 Initializing Python Server Link...")
 	
 	while true do
 		local names = {}
-		for _, p in pairs(game.Players:GetPlayers()) do 
-			table.insert(names, p.Name) 
-		end
+		for _, p in pairs(game.Players:GetPlayers()) do table.insert(names, p.Name) end
 		
 		local success, response = pcall(function()
 			return HttpService:PostAsync(URL .. "/roblox_sync", HttpService:JSONEncode({players = names}))
@@ -55,6 +58,7 @@ task.spawn(function()
 			
 			local data = HttpService:JSONDecode(response)
 			
+			-- 1. Manage Auth GUIs
 			for _, p in pairs(game.Players:GetPlayers()) do
 				local session = data.sessions[p.Name]
 				if session and session.status == "pending" then
@@ -64,19 +68,26 @@ task.spawn(function()
 				end
 			end
             
+			-- 2. Handle Messages as Bubble Chat
 			if #data.messages > lastMsgCount then
 				for i = lastMsgCount + 1, #data.messages do
-					print("[Python]: " .. data.messages[i])
+					local fullMsg = data.messages[i] -- Format: "Username: Message"
+					local split = string.split(fullMsg, ": ")
+					local user, content = split[1], split[2]
+					
+					if user and content then
+						print("[Python Sync]: " .. fullMsg)
+						createBubble(user, content)
+					end
 				end
 				lastMsgCount = #data.messages
 			end
 		else
 			if isConnected then
-				warn("❌ Python Server Disconnected! Retrying...")
+				warn("❌ Python Server Disconnected!")
 				isConnected = false
-				cleanupAllGuis() -- Remove codes so players aren't confused
 			end
 		end
-		task.wait(2)
+		task.wait(1.5)
 	end
 end)

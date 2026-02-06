@@ -1,5 +1,5 @@
 local HttpService = game:GetService("HttpService")
-local URL = "https://your-app-name.onrender.com"
+local URL = "https://robloxtest-2h1p.onrender.com"
 
 local lastProcessedMsg = 0
 

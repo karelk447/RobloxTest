@@ -1,22 +1,34 @@
 import requests
+import time
 
-# REPLACE THIS with your actual Render URL after deployment
-CLOUD_URL = "https://robloxtest-2h1p.onrender.com/send"
+BASE_URL = "https://robloxtest-2h1p.onrender.com" # Change this!
 
-def login():
-    user = input("Enter Roblox Username: ")
-    msg = input("Enter Message to send: ")
+def main():
+    username = input("Enter your Roblox Username: ")
     
-    payload = {"username": user, "text": msg}
-    
-    try:
-        response = requests.post(CLOUD_URL, json=payload)
-        if response.status_code == 200:
-            print("Successfully sent to cloud!")
+    # 1. Wait for server to generate a code
+    print(f"Checking status for {username}...")
+    while True:
+        resp = requests.get(f"{BASE_URL}/get_status/{username}").json()
+        if resp['status'] == 'verified':
+            print("Already verified!")
+            break
         else:
-            print(f"Server error: {response.status_code}")
-    except Exception as e:
-        print(f"Connection failed: {e}")
+            code = input(f"Enter the verification code shown in Roblox for {username}: ")
+            v_resp = requests.post(f"{BASE_URL}/verify", json={"username": username, "code": code}).json()
+            if v_resp.get("success"):
+                print("Verification Successful!")
+                break
+            print("Wrong code, try again.")
+
+    # 2. Message Loop (No more verification needed)
+    print("\n--- Chat Mode Enabled ---")
+    while True:
+        msg = input("Message: ")
+        if msg.lower() == "exit": break
+        
+        requests.post(f"{BASE_URL}/send", json={"username": username, "text": msg})
+        print("Sent!")
 
 if __name__ == "__main__":
-    login()
+    main()

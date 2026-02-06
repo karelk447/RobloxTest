@@ -1,7 +1,7 @@
 import requests
 
 # REPLACE THIS with your actual Render URL after deployment
-CLOUD_URL = "https://your-app-name.onrender.com/send"
+CLOUD_URL = "https://robloxtest-2h1p.onrender.com/send"
 
 def login():
     user = input("Enter Roblox Username: ")

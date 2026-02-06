@@ -2,7 +2,7 @@ local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 
 -- REPLACE THIS with your actual Render URL
-local BASE_URL = "https://your-app-name.onrender.com/get/"
+local BASE_URL = "https://robloxtest-2h1p.onrender.com/get/"
 
 while true do
 	for _, player in pairs(Players:GetPlayers()) do

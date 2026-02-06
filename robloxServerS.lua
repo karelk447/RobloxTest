@@ -1,3 +1,4 @@
+print("Running")
 local HttpService = game:GetService("HttpService")
 local URL = "https://robloxtest-2h1p.onrender.com"
 

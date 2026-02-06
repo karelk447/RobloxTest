@@ -1,5 +1,5 @@
 local HttpService = game:GetService("HttpService")
-local config = script.Parent:WaitForChild("ServerConfig")
+local config = game.ServerStorage:WaitForChild("ServerConfig")
 local URL = config:WaitForChild("ApiUrl").Value
 
 local lastMsgCount = 0
